@@ -1,0 +1,16 @@
+# macOS system file
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+.venv/
+
+# Environment variables
+.env
+
+# PyCharm / IDEA
+.idea/
