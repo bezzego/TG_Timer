@@ -19,61 +19,47 @@ from voice import Voice
 
 def parse_natural_text(text: str):
     """
-    Парсим время «на завтра в 5 утра», «30s», «через 2h», «повтори каждые 5 минут» и т.д.
-    Возвращает (seconds, is_repeating).
-    seconds = кол-во секунд (int)
-    is_repeating = bool (True, если текст указывает на повтор)
-    Если не смогли распарсить, возвращаем (None, False).
+    Парсит текст вида «поставь таймер на 5 минут», «30s», «завтра в 10» и т.д.
+    Возвращает: (seconds, is_repeating, source), где:
+        - seconds: int
+        - is_repeating: bool
+        - source: 'dateparser' | 'pytimeparse' | None
     """
+
     txt = text.strip().lower()
-
-    # Убираем фразы «поставь таймер», «сделай интервал», «повтори», «через», etc.
-    # Для упрощения можно делать через replacements
-    placeholders = [
-        "поставь таймер на",
-        "сделай интервал",
-        "запусти таймер на",
-        "поставь будильник на",
-        "сделай таймер на"
-    ]
-    for ph in placeholders:
-        if ph in txt:
-            txt = txt.replace(ph, "")
-
-    # check is repeating
     repeating = False
-    if "повтор" in txt or "кажд" in txt:  # «повторяй», «каждые»
+
+    # Фразы, указывающие на повтор
+    if "повтор" in txt or "кажд" in txt:
         repeating = True
-        # убираем «повтор», «каждые»
-        txt = txt.replace("повторяй", "")
-        txt = txt.replace("повтор", "")
-        txt = txt.replace("каждые", "")
-        txt = txt.replace("каждый", "")
-        txt = txt.strip()
+        txt = txt.replace("повторяй", "").replace("повтор", "").replace("каждые", "").replace("каждый", "").strip()
 
-    # «на завтра» -> «завтра»
+    # Убираем лишние фразы
+    for ph in [
+        "поставь таймер на", "сделай интервал", "запусти таймер на",
+        "сделай таймер на", "поставь будильник на", "поставь на"
+    ]:
+        txt = txt.replace(ph, "")
+
+    # Замена "на завтра" → "завтра", "в 5 утра" → "5 am"
     txt = txt.replace("на завтра", "завтра")
-    # « утра» -> « am», « вечера» -> « pm»
-    txt = txt.replace("утра", " am")
-    txt = txt.replace("вечера", " pm")
-    txt = txt.strip()
+    txt = txt.replace(" утра", " am").replace(" вечера", " pm").replace(" дня", " pm").replace(" ночи", " am")
 
-    # Сначала попробуем dateparser (автоматическая магия)
+    # Пробуем dateparser
     dt = dateparser.parse(txt, languages=["ru"], settings={"PREFER_DATES_FROM": "future"})
     if dt:
         now = datetime.now()
         if dt <= now:
-            # время в прошлом
-            return (None, repeating)
+            return (None, repeating, None)
         secs = int((dt - now).total_seconds())
-        return (secs, repeating)
+        return (secs, repeating, "dateparser")
 
-    # если не получилось, попробуем pytimeparse, типа «30s», «2h30m» и т. п.
+    # Пробуем pytimeparse (поддерживает '30s', '2h30m', '1m')
     secs2 = parse_simple(txt)
     if secs2 and secs2 > 0:
-        return (secs2, repeating)
+        return (secs2, repeating, "pytimeparse")
 
-    return (None, repeating)
+    return (None, repeating, None)
 
 
 class TimerBot:
@@ -188,23 +174,26 @@ class TimerBot:
         self.start_repeating_timer(chat_id, secs)
 
     def handle_text(self, update: Update, context: CallbackContext):
+        """Обработка обычного текстового сообщения с временем."""
         chat_id = update.effective_chat.id
         text = update.message.text
-        secs, is_rep = parse_natural_text(text)
+
+        secs, is_rep, source = parse_natural_text(text)
         if not secs or secs <= 0:
-            update.message.reply_text("Не понял время. Пример: 30s, завтра в 10 утра, и т.д.")
+            update.message.reply_text("Не понял время. Пример: 30s, завтра в 10 утра, через 15 минут.")
             return
 
-        # +1 секунда, чтобы не "украдывало"
-        corrected_secs = secs + 1
+        # Добавляем +1 секунду только если источник — dateparser (естественный язык)
+        if source == "dateparser":
+            secs += 1
 
         if is_rep:
-            self.start_repeating_timer(chat_id, corrected_secs)
+            self.start_repeating_timer(chat_id, secs)
         else:
-            self.start_one_time_timer(chat_id, corrected_secs)
+            self.start_one_time_timer(chat_id, secs)
 
     def handle_voice(self, update: Update, context: CallbackContext):
-        """Голосовое -> распознаём -> парсим -> ставим таймер."""
+        """Обработка голосового сообщения."""
         chat_id = update.effective_chat.id
         voice_file = update.message.voice.get_file()
         temp_path = f"voice_{update.message.message_id}.ogg"
@@ -217,22 +206,22 @@ class TimerBot:
             pass
 
         if not recognized:
-            update.message.reply_text("Не понял голос. Попробуйте сформулировать иначе.")
+            update.message.reply_text("Не понял голос. Попробуйте сказать иначе.")
             return
 
-        # Парсим
-        secs, is_rep = parse_natural_text(recognized)
+        secs, is_rep, source = parse_natural_text(recognized)
         if not secs or secs <= 0:
             update.message.reply_text("Не смог распознать время из голосового сообщения.")
             return
 
-        # +1 секунда для компенсации задержки
-        corrected_secs = secs + 1
+        # Добавляем +1 секунду только если источник — dateparser
+        if source == "dateparser":
+            secs += 1
 
         if is_rep:
-            self.start_repeating_timer(chat_id, corrected_secs)
+            self.start_repeating_timer(chat_id, secs)
         else:
-            self.start_one_time_timer(chat_id, corrected_secs)
+            self.start_one_time_timer(chat_id, secs)
 
     def handle_callback(self, update: Update, context: CallbackContext):
         """Обработчик inline-кнопок."""

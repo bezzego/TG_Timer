@@ -106,10 +106,24 @@
       "duration": 5,
       "finished_at": 1743025454,
       "repeating": false
+    },
+    {
+      "id": 37,
+      "chat_id": 764643451,
+      "duration": 60,
+      "finished_at": 1743025947,
+      "repeating": false
+    },
+    {
+      "id": 38,
+      "chat_id": 764643451,
+      "duration": 60,
+      "finished_at": 1743025954,
+      "repeating": false
     }
   ],
   "settings": {
     "sound": "bell"
   },
-  "next_id": 37
+  "next_id": 39
 }
