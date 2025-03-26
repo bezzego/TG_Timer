@@ -6,8 +6,7 @@ import progressbar
 
 
 load_dotenv()
-
-tg_token = os.getenv('TG_TOKEN')
+TG_TOKEN = os.getenv('TG_TOKEN')
 
 
 def wait(chat_id, question):
@@ -29,6 +28,6 @@ def reply(chat_id):
 
 
 if __name__ == '__main__':
-    bot = ptbot.Bot(tg_token)
+    bot = ptbot.Bot(TG_TOKEN)
     bot.reply_on_message(wait)
     bot.run_bot()
