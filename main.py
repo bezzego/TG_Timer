@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 from pytimeparse import parse
-from functools import partial
 
 import ptbot
 import progressbar
@@ -17,18 +16,18 @@ def wait(chat_id, question, bot):
 
     bot.create_countdown(
         seconds,
-        partial(
-            notify_progress,
-            chat_id=chat_id,
-            message_id=message_id,
-            total=seconds,
-            bot=bot
-        )
+        notify_progress,
+        chat_id=chat_id,
+        message_id=message_id,
+        total=seconds,
+        bot=bot
     )
 
     bot.create_timer(
         seconds,
-        partial(reply, chat_id=chat_id, bot=bot)
+        reply,
+        chat_id=chat_id,
+        bot=bot
     )
 
     print("Мне написал пользователь с ID:", chat_id)
@@ -52,7 +51,7 @@ def main():
     load_dotenv()
     tg_token = os.getenv('TG_TOKEN')
     bot = ptbot.Bot(tg_token)
-    bot.reply_on_message(partial(wait, bot=bot))
+    bot.reply_on_message(wait, bot=bot)
     bot.run_bot()
 
 
