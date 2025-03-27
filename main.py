@@ -5,8 +5,6 @@ from dotenv import load_dotenv
 import ptbot
 import progressbar
 
-load_dotenv()
-TG_TOKEN = os.getenv('TG_TOKEN')
 
 bot: Optional[ptbot.Bot] = None
 
@@ -40,6 +38,8 @@ def reply(chat_id):
 
 def main():
     global bot
+    load_dotenv()
+    TG_TOKEN = os.getenv('TG_TOKEN')
     bot = ptbot.Bot(TG_TOKEN)
     bot.reply_on_message(wait)
     bot.run_bot()
